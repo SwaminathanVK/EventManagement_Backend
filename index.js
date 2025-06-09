@@ -22,10 +22,10 @@ ConnectDB();
 
 
 
-// app.use(cors({
-//   origin: 'http://localhost:5173',
-//   withcredentials: true
-// }))
+app.use(cors({
+  origin: 'http://localhost:5174',
+  credentials: true
+}))
 
 
 
