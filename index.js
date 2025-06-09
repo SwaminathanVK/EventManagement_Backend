@@ -13,19 +13,22 @@ import paymentRouter from './Routers/PaymentRouter.js';
 import registrationRouter from './Routers/registrationRouter.js';
 
 dotenv.config();
-
 const app = express();
+
+
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true
+}))
+
 app.use(express.json());
-app.use(cors());
+// app.use(cors());
 
 ConnectDB();
 
 
 
-app.use(cors({
-  origin: 'http://localhost:5174',
-  credentials: true
-}))
+
 
 
 
