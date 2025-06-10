@@ -72,7 +72,7 @@ export const getEvents = async (req, res) => {
       minPrice, maxPrice, sortBy, page, limit
     } = req.query;
 
-    const query = { status: 'approved' };
+    const query = { status: 'approved',isDeleted: { $ne: true } };
     if (keyword) query.title = { $regex: keyword, $options: 'i' };
     if (category) query.category = category;
     if (location) query.location = { $regex: location, $options: 'i' };
@@ -161,7 +161,7 @@ export const deleteEvent = async (req,res) => {
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
     // Check permission
-    if (req.user.role !== 'admin' && event.organizer.toString() !== req.user._id.toString()) {
+    if (req.user.role !== 'admin' && event.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this event' });
     }
 

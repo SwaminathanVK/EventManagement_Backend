@@ -11,9 +11,9 @@ router.get('/', getEvents);
 
 //organizer
 // Create event - 
-router.post('/OrgcreateEvent', protect,isOrganizer , createEvent);
+router.post('/createEvent', protect,isOrganizer , createEvent);
 
-// Create event - 
+// Create event - Admin
 router.post('/AdmcreateEvent', protect,isAdmin , createEvent);
 
 // Update event - only organizers allowed
