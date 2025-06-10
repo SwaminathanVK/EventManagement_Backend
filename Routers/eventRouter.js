@@ -7,8 +7,6 @@ const router = express.Router();
 // Get all approved events with filters - public
 router.get('/', getEvents);
 
-
-
 //organizer
 // Create event - 
 router.post('/createEvent', protect,isOrganizer , createEvent);
@@ -27,10 +25,11 @@ router.put('/:id/approve', protect, isAdmin, approveEvent);
 router.put('/:id/reject', protect, isAdmin, rejectEvent);
 
 //Get only approved events (public)
-router.get('/:id', getEventById);
+
 
 router.get('/organizer/events', protect, isOrganizer, getOrganizerEvents);
 router.get('/pending', protect, isAdmin, getPendingEvents);
 
+router.get('/:id', getEventById);
 
 export default router;
