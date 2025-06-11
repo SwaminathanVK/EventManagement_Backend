@@ -184,7 +184,7 @@ export const getEventById = async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized access' });
     }
 
-    res.status(200).json(event);
+    res.status(200).json({event});
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch event', error: error.message });
   }
