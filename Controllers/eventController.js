@@ -18,27 +18,60 @@ export const createEvent = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
-        const { title, description, date, location, category, ticketTypes, image } = req.body;
 
-        // Basic validation
-        if (!title || !description || !date || !location || !category || !ticketTypes || !Array.isArray(ticketTypes)) {
-            return res.status(400).json({ message: 'Please provide all required event details' });
+        // Destructure only the fields that are sent from your AdminCreateEventPage.jsx
+        const { title, description, date, location, capacity, price } = req.body;
+
+        // --- Basic Validation based on the fields received from the frontend ---
+        if (!title || !description || !date || !location || !capacity || !price) {
+            return res.status(400).json({ message: 'Please provide all required event details: title, description, date, location, capacity, and price.' });
         }
 
-        // Role check: only 'organizer' and 'admin' can create events (already handled by router middleware usually)
-        // if (!['organizer', 'admin'].includes(req.user.role)) {
-        //   return res.status(403).json({ message: 'Only organizers or admins can create events' });
-        // }
+        // --- More Robust Type/Value Validation ---
+        const numericCapacity = Number(capacity);
+        const numericPrice = Number(price);
+
+        if (isNaN(numericCapacity) || numericCapacity <= 0) {
+            return res.status(400).json({ message: 'Capacity must be a positive number.' });
+        }
+        if (isNaN(numericPrice) || numericPrice < 0) {
+            return res.status(400).json({ message: 'Price must be a non-negative number.' });
+        }
+        if (new Date(date).toString() === 'Invalid Date') {
+            return res.status(400).json({ message: 'Please provide a valid date and time.' });
+        }
+        // Optional: Ensure the event date is in the future
+        if (new Date(date) < new Date()) {
+             return res.status(400).json({ message: 'Event date must be in the future.' });
+        }
+
+
+        // --- Construct 'ticketTypes' and handle 'category', 'image' for the Event Model ---
+        // Your Event model likely expects `ticketTypes` as an array of objects.
+        // We'll create one 'Standard' ticket type using the provided price and capacity.
+        const ticketTypes = [{
+            name: 'Standard', // Default ticket type name
+            price: numericPrice,
+            capacity: numericCapacity,
+            available: numericCapacity // Initially all tickets are available
+        }];
+
+        // Assuming 'category' and 'image' are optional or will be handled later.
+        // Provide defaults or make sure your Mongoose schema allows them to be missing/null.
+        // If your Mongoose schema requires 'category' and 'image', you MUST add inputs for them in your frontend form.
+        const category = req.body.category || 'General'; // Default category if not provided by frontend
+        const image = req.body.image || null; // Default image to null if not provided by frontend
+
 
         const event = new Event({
             title,
             description,
-            date,
+            date: new Date(date), // Ensure it's a proper Date object
             location,
-            category,
-            ticketTypes,
-            image,
-            createdBy: req.user._id,
+            category,        // Use the default or provided category
+            ticketTypes,     // Use the constructed ticketTypes array
+            image,           // Use the default or provided image
+            createdBy: userId,
             status: req.user.role === 'admin' ? 'approved' : 'pending', // Admin can directly approve
         });
 
@@ -46,6 +79,11 @@ export const createEvent = async (req, res) => {
         res.status(201).json({ message: 'Event created successfully', event });
     } catch (error) {
         console.error('Create Event Error:', error);
+        // Provide more detailed error messages for Mongoose validation errors
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            return res.status(400).json({ message: messages.join(', ') });
+        }
         res.status(500).json({ message: 'Failed to create event', error: error.message });
     }
 };

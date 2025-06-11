@@ -1,10 +1,11 @@
 import express from 'express';
 import { bookTicket, cancelTicket, getUserTickets, transferTicket, } from '../Controllers/ticketController.js';
 
-import { isUser, protect } from '../Middlewares/authMiddleware.js'; 
+import { isUser, protect } from '../Middlewares/authMiddleware.js'; // Auth middleware to secure routes
 
 const router = express.Router();
 
+// All routes protected - user must be logged in
 
 // POST /api/tickets/book  --> book a ticket
 router.post('/book', protect , isUser, bookTicket);

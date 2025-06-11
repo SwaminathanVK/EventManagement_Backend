@@ -8,6 +8,6 @@ const router = express.Router();
 router.post('/checkout', protect, isUser, createCheckoutSession);
 
 // Route to confirm payment after successful payment - accessible to authenticated users
-router.post('/confirm-payment', protect, isUser, confirmPayment);
+router.post('/confirm/payment', protect, isUser, confirmPayment);
 
 export default router;

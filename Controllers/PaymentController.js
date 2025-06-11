@@ -48,8 +48,8 @@ export const createCheckoutSession = async (req, res) => {
         },
         quantity: parsedquantity,
       }],
-      success_url: `${process.env.CLIENT_URL}/payment-confirmed`,
-      cancel_url: `${process.env.CLIENT_URL}/payment-cancel`,
+      success_url: `${process.env.CLIENT_URL}/user/payment-success`, // Corrected path
+cancel_url: `${process.env.CLIENT_URL}/user/payment-cancel`,    // Corrected path
       metadata: {
         userId: userId.toString(),
         eventId: eventId.toString(),

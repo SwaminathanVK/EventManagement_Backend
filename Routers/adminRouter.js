@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(protect, isAdmin);
 
 
-router.post('/create-event',protect, isAdmin,createEvent)
+router.post('/events/create',protect, isAdmin,createEvent)
 // router.get('/dashboard', protect, isAdmin, getAdminDashboard);
 router.get('/organizers', protect, isAdmin, getAllOrganizers);
 
