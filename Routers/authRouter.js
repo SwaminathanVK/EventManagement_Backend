@@ -1,12 +1,15 @@
-// routes/authRoutes.js
+// src/Routers/authRouter.js
 import express from 'express';
-import { register, login, getCurrentUser } from '../Controllers/authController.js';
-import { protect } from '../Middlewares/authMiddleware.js';
+import { register, login, getMe } from '../Controllers/authController.js'; // <--- Import getMe
+import { protect } from '../Middlewares/authMiddleware.js'; 
 
 const router = express.Router();
 
-router.post('/register',register);
+router.post('/register', register);
 router.post('/login', login);
-router.get('/me', protect, getCurrentUser); 
+
+
+// It should be protected so only logged-in users can access it
+router.get('/me', protect, getMe); 
 
 export default router;

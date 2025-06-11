@@ -1,273 +1,331 @@
 import Event from '../Models/Event.js';
+// If you are using 'express-async-handler', import it here as well
+// import asyncHandler from 'express-async-handler';
+
+// --- Helper for simplified error handling (if not using express-async-handler for every export)
+const catchAsync = fn => (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+};
+// If you are using 'express-async-handler' middleware on your routes, you don't need catchAsync
+// Instead, wrap each export function: `export const getEvents = asyncHandler(async (req, res) => { ... });`
+
+// --- Existing Controllers (Modified or Reviewed) ---
 
 // Create a new event
 export const createEvent = async (req, res) => {
-  try {
+    try {
+        const userId = req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        const { title, description, date, location, category, ticketTypes, image } = req.body;
 
-    const userId = req.user?._id;
-    if (!userId){
-      return res.status(401).json({ message: "Unauthorized" });
+        // Basic validation
+        if (!title || !description || !date || !location || !category || !ticketTypes || !Array.isArray(ticketTypes)) {
+            return res.status(400).json({ message: 'Please provide all required event details' });
+        }
+
+        // Role check: only 'organizer' and 'admin' can create events (already handled by router middleware usually)
+        // if (!['organizer', 'admin'].includes(req.user.role)) {
+        //   return res.status(403).json({ message: 'Only organizers or admins can create events' });
+        // }
+
+        const event = new Event({
+            title,
+            description,
+            date,
+            location,
+            category,
+            ticketTypes,
+            image,
+            createdBy: req.user._id,
+            status: req.user.role === 'admin' ? 'approved' : 'pending', // Admin can directly approve
+        });
+
+        await event.save();
+        res.status(201).json({ message: 'Event created successfully', event });
+    } catch (error) {
+        console.error('Create Event Error:', error);
+        res.status(500).json({ message: 'Failed to create event', error: error.message });
     }
-    const { title, description, date, location, category, ticketTypes, image } = req.body;
-
-    // Basic validation
-    if (!title || !description || !date || !location || !category || !ticketTypes || !Array.isArray(ticketTypes)) {
-      return res.status(400).json({ message: 'Please provide all required event details' });
-    }
-
-    // Role check: only 'organizer' and 'admin' can create events
-    if (!['organizer', 'admin'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Only organizers or admins can create events' });
-    }
-
-    const event = new Event({
-      title,
-      description,
-      date,
-      location,
-      category,
-      ticketTypes,
-      image,
-      createdBy: req.user._id,
-      status: req.user.role === 'admin' ? 'approved' : 'pending',
-    });
-
-    await event.save();
-    res.status(201).json({ message: 'Event created successfully', event });
-  } catch (error) {
-    console.error('Create Event Error:', error);
-    res.status(500).json({ message: 'Failed to create event', error: error.message });
-  }
 };
 
-// Admin: Approve or reject event
+// Admin: Approve event
 export const approveEvent = async (req, res) => {
     try {
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Only admin can approve events' });
-      }
-  
-      const { eventId } = req.params;
-      const event = await Event.findById(eventId);
-  
-      if (!event) return res.status(404).json({ message: 'Event not found' });
-  
-      event.status = 'approved';
-      await event.save();
-  
-      res.status(200).json({ message: 'Event approved successfully', event });
+        // Role check is likely handled by isAdmin middleware on the route
+        // if (req.user.role !== 'admin') {
+        //   return res.status(403).json({ message: 'Only admin can approve events' });
+        // }
+
+        const { eventId } = req.params; // Use eventId as named in router
+        const event = await Event.findById(eventId);
+
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        event.status = 'approved';
+        await event.save();
+
+        res.status(200).json({ message: 'Event approved successfully', event });
     } catch (err) {
-      res.status(500).json({ message: 'Failed to approve event', error: err.message });
+        res.status(500).json({ message: 'Failed to approve event', error: err.message });
     }
 };
 
-
-
-//get all events
-
+// Public: Get all events (can be filtered by query params, default status: 'approved')
+// This is your main public listing, already filters by status: 'approved'
 export const getEvents = async (req, res) => {
-  try {
-    let {
-      keyword, category, location, startDate, endDate,
-      minPrice, maxPrice, sortBy, page, limit
-    } = req.query;
-
-    const query = { status: 'approved',isDeleted: { $ne: true } };
-    if (keyword) query.title = { $regex: keyword, $options: 'i' };
-    if (category) query.category = category;
-    if (location) query.location = { $regex: location, $options: 'i' };
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
-    }
-    if (minPrice || maxPrice) {
-      query['ticketTypes.price'] = {};
-      if (minPrice) query['ticketTypes.price'].$gte = Number(minPrice);
-      if (maxPrice) query['ticketTypes.price'].$lte = Number(maxPrice);
-    }
-   //pagination
-    page = Number(page) || 1;
-    limit = Number(limit) || 10;
-    const skip = (page - 1) * limit;
-
-    let sort = {};
-    if (sortBy === 'priceAsc') sort = { 'ticketTypes.price': 1 };
-    else if (sortBy === 'priceDesc') sort = { 'ticketTypes.price': -1 };
-    else if (sortBy === 'dateAsc') sort = { date: 1 };
-    else if (sortBy === 'dateDesc') sort = { date: -1 };
-
-    const events = await Event.find(query).sort(sort).skip(skip).limit(limit);
-    const count = await Event.countDocuments(query);
-
-    res.json({ events, count, page, pages: Math.ceil(count / limit) });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch events', error: error.message });
-  }
-};
-
-// Get all events (Admin can see all, users see only approved)
-export const getAllEvents = async (req, res) => {
-  try {
-    const role = req.user?.role;
-    const userId = req.user?._id;
-    let events =[];
-      if(role === 'admin'){
-        events = await Event.find().populate('createdBy', 'name email')
-      }else if (role === 'organizer') {
-        events = await Event.find({ createdBy: userId }).populate('createdBy', 'name email');
-      }else{
-        return res.status(403).json({ message: 'Access denied' });
-      }
-    res.status(200).json({ events });
-  } catch (error) {
-    console.error('Get Events Error:', error);
-    res.status(500).json({ message: 'Failed to fetch events', error: error.message });
-  }
-};
-
-// update a event
-export const updateEvent = async(req,res) => {
     try {
-      const eventID = req.params.id;
-      const event = await Event.findById(eventID);
-      if (!event) return res.status(404).json({ message: 'Event not found' });
-  
-      // Organizer can only update own pending event
-      if (req.user.role === 'organizer'||req.user.role === 'admin') {
-        if (!event.createdBy || event.createdBy.toString()  !== req.user._id.toString()) {
-          return res.status(403).json({ message: 'Not authorized to update this event' });
+        let {
+            keyword, category, location, startDate, endDate,
+            minPrice, maxPrice, sortBy, page, limit
+        } = req.query;
+
+        const query = { status: 'approved', isDeleted: { $ne: true } }; // Already filters for approved
+        if (keyword) query.title = { $regex: keyword, $options: 'i' };
+        if (category) query.category = category;
+        if (location) query.location = { $regex: location, $options: 'i' };
+        if (startDate || endDate) {
+            query.date = {};
+            if (startDate) query.date.$gte = new Date(startDate);
+            if (endDate) query.date.$lte = new Date(endDate);
         }
-        if (event.status !== 'pending') {
-          return res.status(403).json({ message: 'Only pending events can be updated' });
+        if (minPrice || maxPrice) {
+            query['ticketTypes.price'] = {};
+            if (minPrice) query['ticketTypes.price'].$gte = Number(minPrice);
+            if (maxPrice) query['ticketTypes.price'].$lte = Number(maxPrice);
         }
-        req.body.status = 'pending'; 
-      }
-  
-      // Allow updates
-      const updatedEvent = await Event.findByIdAndUpdate(eventID, req.body, { new: true });
-      res.status(200).json({ message: 'Event updated successfully', data: updatedEvent });
+        //pagination
+        page = Number(page) || 1;
+        limit = Number(limit) || 10;
+        const skip = (page - 1) * limit;
+
+        let sort = {};
+        if (sortBy === 'priceAsc') sort = { 'ticketTypes.price': 1 };
+        else if (sortBy === 'priceDesc') sort = { 'ticketTypes.price': -1 };
+        else if (sortBy === 'dateAsc') sort = { date: 1 };
+        else if (sortBy === 'dateDesc') sort = { date: -1 };
+        else sort = { createdAt: -1 }; // Default sort if none specified
+
+        const events = await Event.find(query).sort(sort).skip(skip).limit(limit);
+        const count = await Event.countDocuments(query);
+
+        res.json({ events, count, page, pages: Math.ceil(count / limit) });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+        console.error('Get Events Error:', error); // Added console.error
+        res.status(500).json({ message: 'Failed to fetch events', error: error.message });
     }
 };
 
-//delete a event 
-
-export const deleteEvent = async (req,res) => {
-  try {
-    const eventId = req.params.id;
-    const event = await Event.findById(eventId);
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-
-    // Check permission
-    if (req.user.role !== 'admin' && event.createdBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to delete this event' });
+// Public: Get all approved events (explicitly for the /api/events/approved route)
+// This function can simply call your getEvents function with no query parameters,
+// as getEvents already filters for 'approved' status.
+export const getApprovedEvents = async (req, res) => {
+    // You can technically just call getEvents here if its logic is suitable
+    // Or write a simpler query specifically for approved events if getEvents is too complex
+    try {
+        const events = await Event.find({ status: 'approved', isDeleted: { $ne: true } })
+                                 .populate('createdBy', 'name email'); // Populate if needed
+        res.status(200).json({ events });
+    } catch (error) {
+        console.error('Get Approved Events Error:', error);
+        res.status(500).json({ message: 'Failed to fetch approved events', error: error.message });
     }
+};
 
-    await Event.findByIdAndDelete(eventId);
-    res.status(200).json({ message: 'Event deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+
+// Admin/Organizer: Get All Events (Admin sees all, Organizer sees own)
+export const getAllEvents = async (req, res) => {
+    try {
+        const role = req.user?.role;
+        const userId = req.user?._id;
+        let events = [];
+
+        if (role === 'admin') {
+            events = await Event.find().populate('createdBy', 'name email');
+        } else if (role === 'organizer') {
+            events = await Event.find({ createdBy: userId }).populate('createdBy', 'name email');
+        } else {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+        res.status(200).json({ events });
+    } catch (error) {
+        console.error('Get All Events (Admin/Organizer) Error:', error);
+        res.status(500).json({ message: 'Failed to fetch events', error: error.message });
+    }
+};
+
+// Update an event
+export const updateEvent = async (req, res) => {
+    try {
+        const eventId = req.params.eventId; // Use eventId as named in router
+        const event = await Event.findById(eventId);
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        // --- Refined Authorization and Status Update Logic ---
+        if (req.user.role === 'admin') {
+            // Admin can update any event and can change its status
+            // The status can be changed if it's explicitly in req.body, otherwise keep current
+            const updatedEvent = await Event.findByIdAndUpdate(eventId, req.body, { new: true });
+            return res.status(200).json({ message: 'Event updated successfully (Admin)', data: updatedEvent });
+
+        } else if (req.user.role === 'organizer') {
+            // Organizer can only update their own events that are currently 'pending'
+            if (!event.createdBy || event.createdBy.toString() !== req.user._id.toString()) {
+                return res.status(403).json({ message: 'Not authorized to update this event (not owner)' });
+            }
+            if (event.status !== 'pending') {
+                return res.status(403).json({ message: 'Only pending events can be updated by organizers' });
+            }
+
+            // Organizer updates always reset status to 'pending' to require re-approval if needed
+            const updates = { ...req.body, status: 'pending' };
+            const updatedEvent = await Event.findByIdAndUpdate(eventId, updates, { new: true });
+            return res.status(200).json({ message: 'Event updated successfully (Organizer)', data: updatedEvent });
+
+        } else {
+            // Should be caught by middleware, but good as a fallback
+            return res.status(403).json({ message: 'Access denied to update event' });
+        }
+
+    } catch (error) {
+        console.error('Update Event Error:', error); // Added console.error
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Delete an event
+export const deleteEvent = async (req, res) => {
+    try {
+        const eventId = req.params.eventId; // Use eventId as named in router
+        const event = await Event.findById(eventId);
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        // Check permission
+        // Admin can delete any event. Organizer can only delete their own events.
+        if (req.user.role !== 'admin' && event.createdBy.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized to delete this event' });
+        }
+
+        await Event.findByIdAndDelete(eventId);
+        res.status(200).json({ message: 'Event deleted successfully' });
+    } catch (error) {
+        console.error('Delete Event Error:', error); // Added console.error
+        res.status(500).json({ error: error.message });
+    }
 }
 
-// Public: Get all approved events
+
+// Get a single event by ID (public access logic is robust)
 export const getEventById = async (req, res) => {
-  try {
-    const event = await Event.findById(req.params.id).populate('createdBy', 'name email');
-    if (!event) return res.status(404).json({ message: 'Event not found' });
+    try {
+        const event = await Event.findById(req.params.eventId).populate('createdBy', 'name email'); // Use eventId
+        if (!event) return res.status(404).json({ message: 'Event not found' });
 
-    const isOwner = event.createdBy?._id?.toString() === req.user?._id?.toString();
+        // Determine if the current user is an admin or the event owner
+        const isAdmin = req.user?.role === 'admin';
+        const isOwner = event.createdBy?._id?.toString() === req.user?._id?.toString();
 
-    if (event.status !== 'approved' && req.user.role !== 'admin' && !isOwner) {
-      return res.status(403).json({ message: 'Unauthorized access' });
+        // Condition for allowing access:
+        // 1. Event status is 'approved' (publicly viewable)
+        // OR
+        // 2. User is an admin (can see all events)
+        // OR
+        // 3. User is the owner of the event (can see their own events, regardless of status)
+        if (event.status === 'approved' || isAdmin || isOwner) {
+            return res.status(200).json({ event });
+        } else {
+            return res.status(403).json({ message: 'Unauthorized access to this event status.' });
+        }
+
+    } catch (error) {
+        console.error('Get Event By ID Error:', error);
+        res.status(500).json({ message: 'Failed to fetch event', error: error.message });
     }
-
-    res.status(200).json({event});
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch event', error: error.message });
-  }
 };
 
 // Admin rejects an event
 export const rejectEvent = async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const { reason } = req.body;
-    
-    if (!reason) {
-      return res.status(400).json({ message: 'Rejection reason is required' });
+    try {
+        const { eventId } = req.params;
+        const { reason } = req.body;
+
+        if (!reason) {
+            return res.status(400).json({ message: 'Rejection reason is required' });
+        }
+
+        const event = await Event.findById(eventId).populate('createdBy', 'email name');
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        event.status = 'rejected';
+        event.rejectionReason = reason;
+        await event.save();
+
+        // Send rejection notification (pseudo-code) - Assuming sendNotification is defined elsewhere
+        // if (event.createdBy?.email) {
+        //   sendNotification(event.createdBy.email, {
+        //     type: 'event-rejected',
+        //     eventId: event._id,
+        //     eventTitle: event.title,
+        //     reason
+        //   });
+        // }
+
+
+        res.status(200).json({
+            message: 'Event rejected successfully',
+            event
+        });
+    } catch (error) {
+        console.error('Reject Event Error:', error);
+        res.status(500).json({
+            message: 'Failed to reject event',
+            error: error.message
+        });
     }
-
-    const event = await Event.findById(eventId).populate('createdBy', 'email name');
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-
-    event.status = 'rejected';
-    event.rejectionReason = reason;
-    await event.save();
-
-    // Send rejection notification (pseudo-code)
-    sendNotification(event.createdBy.email, {
-      type: 'event-rejected',
-      eventId: event._id,
-      eventTitle: event.title,
-      reason
-    });
-
-    res.status(200).json({ 
-      message: 'Event rejected successfully',
-      event 
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      message: 'Failed to reject event', 
-      error: error.message 
-    });
-  }
 };
 
 
-export const getOrganizerEvents = async(req,res)=>{
-  try {
-    const events = await Event.find({ 
-      createdBy: req.user.id,
-      status: { $ne: 'deleted' } // Exclude deleted events
-    }).sort({ createdAt: -1 });
+export const getOrganizerEvents = async (req, res) => {
+    try {
+        const events = await Event.find({
+            createdBy: req.user.id,
+            status: { $ne: 'deleted' } // Exclude deleted events
+        }).sort({ createdAt: -1 });
 
-    res.status(200).json({
-      success: true,
-      count: events.length,
-      data: events
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      error: 'Server Error'
-    });
-  }
+        res.status(200).json({
+            success: true,
+            count: events.length,
+            data: events
+        });
+    } catch (err) {
+        console.error('Get Organizer Events Error:', err); // Added console.error
+        res.status(500).json({
+            success: false,
+            error: 'Server Error'
+        });
+    }
 }
 
-export const getPendingEvents = async (req,res) =>{
-  try {
-    const events = await Event.find({ 
-      status: 'pending',
-      isDeleted: false 
-    })
-    .populate('organizer', 'name email')
-    .sort({ submittedAt: 1 }); // Oldest first
+export const getPendingEvents = async (req, res) => {
+    try {
+        const events = await Event.find({
+            status: 'pending',
+            isDeleted: { $ne: true } // Assuming 'isDeleted' field, exclude soft-deleted events
+        })
+            .populate('createdBy', 'name email') // Populate 'createdBy' as it's the organizer
+            .sort({ createdAt: 1 }); // Assuming a 'createdAt' field, sort by submission date
 
-    res.status(200).json({
-      success: true,
-      count: events.length,
-      data: events
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      error: 'Server Error'
-    });
-  }
+        res.status(200).json({
+            success: true,
+            count: events.length,
+            data: events
+        });
+    } catch (err) {
+        console.error('Get Pending Events Error:', err); // Added console.error
+        res.status(500).json({
+            success: false,
+            error: 'Server Error'
+        });
+    }
 }

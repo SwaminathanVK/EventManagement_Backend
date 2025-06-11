@@ -32,12 +32,17 @@ export const protect = async (req, res, next) => {
 };
 
 export const isAdminOrOrganizer = (req, res, next) => {
-  if (req.user.role === 'admin' || req.user.role === 'organizer') {
-    next();
-  } else {
-    return res.status(403).json({ message: 'Access denied' });
+  // Ensure req.user exists from the 'protect' middleware before accessing its properties
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required for role check.' });
   }
-  next();
+
+  if (req.user.role === 'admin' || req.user.role === 'organizer') {
+    next(); // Only call next() if the condition is met
+  } else {
+    return res.status(403).json({ message: 'Access denied. Admins or Organizers only.' }); // Return here if condition is not met
+  }
+  
 };
 
 // Middleware to check admin role

@@ -15,8 +15,10 @@ export const getUserRegistrations = async (req, res) => {
     const registrations = await Registration.find({ user: userId })
       .populate('event', 'title date location')
       .populate('tickets')
+      .populate('payment')
       .skip(skip)
       .limit(limit)
+      .sort({ registeredAt: -1 })
       .exec();
 
     // Count total registrations for the user (to calculate total pages)

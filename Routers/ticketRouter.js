@@ -1,11 +1,10 @@
 import express from 'express';
 import { bookTicket, cancelTicket, getUserTickets, transferTicket, } from '../Controllers/ticketController.js';
 
-import { isUser, protect } from '../Middlewares/authMiddleware.js'; // Auth middleware to secure routes
+import { isUser, protect } from '../Middlewares/authMiddleware.js'; 
 
 const router = express.Router();
 
-// All routes protected - user must be logged in
 
 // POST /api/tickets/book  --> book a ticket
 router.post('/book', protect , isUser, bookTicket);
@@ -17,6 +16,6 @@ router.put('/cancel/:ticketId', protect, isUser ,cancelTicket);
 router.put('/transfer/:ticketId', protect, isUser ,transferTicket);
 
 // GET /api/tickets/mytickets - get all tickets for logged-in user
-router.get('/mytickets', protect,isUser, getUserTickets);
+router.get('/my-tickets', protect,isUser, getUserTickets);
 
 export default router;

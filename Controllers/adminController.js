@@ -112,7 +112,7 @@ export const getAllRegistrations = async (req, res) => {
     const registrations = await Registration.find()
       .populate('user', 'name  email')
       .populate('event', 'title')
-      .populate('tickets');
+      .populate('ticket');
 
     res.status(200).json({ registrations });
   } catch (error) {
