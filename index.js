@@ -17,10 +17,8 @@ const app = express();
 
 
 app.use(cors({
-  origin: ['https://eventy-management-app.netlify.app/'],
-   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  credentials: true, 
-  optionsSuccessStatus: 204
+  origin:"*",
+  
 }))
  
 app.use(express.json());
