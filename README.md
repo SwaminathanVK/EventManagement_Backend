@@ -64,6 +64,7 @@ View platform-wide registrations
 
 Analyze system stats via dashboard
 
+
 📁 Project Structure
 EventManagement_Backend/
 │
