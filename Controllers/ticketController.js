@@ -7,8 +7,11 @@ import { sendMail } from '../utils/sendEmail.js'; // Placeholder for email utili
 // Book ticket(s) for an event
 export const bookTicket = async (req, res) => {
   try {
-    const { eventId, ticketType, quantity } = req.body;
-    const userId = req.user._id;
+      const { eventId, userId, quantity } = session.metadata;
+    const ticketType = session.metadata.ticketType?.toLowerCase();
+    const normalizedTicketType = ticketType.toLowerCase();
+
+    
 
     // Validate input
     if (!eventId || !ticketType || !quantity || quantity <= 0) {
@@ -21,7 +24,7 @@ export const bookTicket = async (req, res) => {
     }
 
     // Find ticket type details in event
-    const ticketInfo = event.ticketTypes.find(ticket => ticket.type === ticketType);
+    const ticketInfo = event.ticketTypes.find(ticket => ticket.type.toLowerCase() === normalizedTicketType);
     if (!ticketInfo) {
       return res.status(400).json({ message: 'Invalid ticket type' });
     }
@@ -33,7 +36,7 @@ export const bookTicket = async (req, res) => {
     const existingPending = await Ticket.find({
       user: userId,
       event: eventId,
-      ticketType,
+      ticketType : ticketType,
       status: 'pending',
     });
 
@@ -49,7 +52,7 @@ export const bookTicket = async (req, res) => {
     const ticket = new Ticket({
       event: eventId,
       user: userId,
-      ticketType,
+      ticketType: ticketType,
       price: ticketInfo.price,
       quantity,
       totalamount,
@@ -221,4 +224,3 @@ export const getUserTickets = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch tickets', error: error.message });
   }
 };
-
